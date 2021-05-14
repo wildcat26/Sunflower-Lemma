@@ -1,10 +1,11 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+int n, d, m, k;
 const int N = int(1e6);
+int u[N];
 
-// n C r
-int choose (int n, int r) {
+int choose (int n, int r) {			// n C r
 	int ans = 1;
 	for (int i = r + 1; i <= n; ++i)
 		ans *= i;
@@ -13,21 +14,18 @@ int choose (int n, int r) {
 	return ans;
 }
 
-// returns iff True if |F| > d!*(k - 1)^d
-bool premise (int d, int k, int modf) {
+bool premise (int d, int k, int modf) { 	// returns iff True if |F| > d!*(k - 1)^d
 	int ans = 1;
 	int cpy = d;
 	while (d) {
-		if (modf <= ans) {
+		if (modf <= ans)
 			return false;
-		}
 		ans *= d--;
 	}
 	d = cpy;
 	for (int i = 1; i <= d; ++i) {
-		if (modf <= ans) {
+		if (modf <= ans)
 			return false;
-		}
 		ans *= (k - 1);
 	}
 	return modf > ans;
@@ -36,94 +34,180 @@ bool premise (int d, int k, int modf) {
 vector <vector <int> > subsets;
 vector <vector <int> > subsetIndices;
 
-// takes input of indices in 'subsets' directly
-bool sunflower (vector <int> &subs) {
-	int tot = subs.size();
-	vector <int> core;
+void disjoint (
+		const vector <int> &setIndices,		// indices from 'subsets' to be checked
+		vector <int> &indices,			// o/p indices pushed in this vector (allocated by caller)
+		const vector <bool> &excluded,		// excluded elems NOT to be checked for checking disjoint
+		int &total) {				// number of elems in the pairwise disjoint sets
 
-	for (int j = 0; j < tot; ++j) {
-		for (int k = j + 1; k < tot; ++k) {
-			vector <int> intersect;
-			for (int el1 : subsets[subs[j]])
-				for (int el2 : subsets[subs[k]])
-					if (el1 == el2)
-						intersect.push_back(el1);
-			if (0 == j and 1 == k) {
-				for (int el : intersect)
-					core.push_back(el);
+	vector <int> g;					// indices from F which are in G
+	total = 0;
+	if (setIndices.size() == 0)
+		return;
+	set <int> ind;
+	for (int index : setIndices) {
+		assert(index >= 0 and index < m);
+		ind.insert(index);
+	}
+	assert(ind.size() == setIndices.size());
+
+	g.push_back(setIndices[0]);		// first set taken
+						// iterating over all subset indices represented by setIndices
+	for (int fi : subsets[setIndices[0]])	// NOT to count excluded elements
+		total += excluded[fi] ? 0 : 1;
+	for (int i : setIndices) {
+		bool take = true;
+		int reduce = 0;
+		for (int el : subsets[i]) {
+			if (excluded[el]) {
+				++reduce;			// el to be ignored
+				continue;
 			}
-			else {
-				vector <int> hashOld(core.size(), 0);
-				for (int newel : intersect) {
-					bool safe = false;
-					for (int i = 0; i < core.size(); ++i) {
-						int old = core[i];
-						if (old == newel) {
-							safe = true;
-							hashOld[i] = 1;
-							break;
-						}
-					}
-					// an element in new intersection not in older one, not a sunflower!!
-					if (!safe) {
-						// cout << newel << " new, not a sunflower\n";
-						return false;
+			for (int takenIndices : g) {
+				for (int present : subsets[takenIndices]) {
+					if (excluded[present]) continue;	// to be ignored
+					if (present == el) {
+						take = false; break;
 					}
 				}
-				int sz = int(core.size());
-				for (int i = 0; i < sz; ++i) {
-					if (0 == hashOld[i]) {
-						// an extra element in intersection of two sets but NOT in intersection of others
-						// petals should be disjoint, only core should be the intersection
-						return false;
+				if (!take) break;
+			}
+			if (!take) break;
+		}
+		if (take) {
+			g.push_back(i);
+			total += (int(subsets[i].size()) - reduce);
+		}
+	}
+	ind.clear();
+	cout << "\nIndices of disjoint subsets \n";		// got G
+	for (int i : g) {
+		cout << i << " ";
+		indices.push_back(i);
+		ind.insert(i);
+	}
+	cout << total << " (total) \n";
+	assert(ind.size() == indices.size());
+}
+
+// before calling the function, subsetIndices is computed!
+void sunflower (
+		const vector <int> &setIndices,			// indices to be checked
+		vector <bool> &excluded,			// elements to be excluded are true
+		const int k,					// k in sunflower lemma expression, same throughout
+		int f,						// number of families in the input
+		vector <int> &sunflowerIndices) {		// o/p indices pushed here, allocated in 'main'
+
+	assert(setIndices.size() == f);
+	if (setIndices.size() == 0)
+		return;
+	int s = 0;
+	cout << "INPUT to sunflower " << k << " " << f << "\n";
+	for (int ip : setIndices)
+		cout << ip << " ";
+	cout << "\n";
+	vector <int> indices;					// trying to find disjoint subsets from F
+	disjoint (setIndices, indices, excluded, s);
+	if (int(indices.size()) >= k)				// already a sunflower with >=k petals
+		for (int i : indices)
+			sunflowerIndices.push_back(i);
+	else {
+		cout << "Number of subsets each element is present in ::\n";
+
+		for (int elem = 1; elem <= n; ++elem)
+			cout << subsetIndices[elem].size() << " ";	// set initially in 'main'
+		cout << "\n";
+
+		for (int elem = 1; elem <= n; ++elem)
+			cout << elem << " ";
+		cout << "\n";
+
+		for (int i = 0; i < n; u[i] = ++i);
+
+		// http://www.cplusplus.com/reference/algorithm/shuffle/
+		unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+		shuffle (u, u + n, std::default_random_engine(seed));
+
+		/* was easier to find max element, but we insist on going with randomness
+		int maxdeg = 0, element = -1;
+		for (int ii = 0; ii < n; ++ii) {
+			int i = u[ii];
+			if (excluded[i]) continue;			// ignore this element
+
+			if (subsetIndices[i].size() > maxdeg) {
+				maxdeg = subsetIndices[i].size();
+				element = i;
+			}
+		}
+
+		assert(element != -1);
+			// best to choose maximum degree element
+		*/
+
+		int l = int(indices.size());
+		int needed = (f + s - l)/s;				// precise calculation of minimizing the max
+									// number of subsets an element can be in
+		cout << f << " " << s << " Needed deg = " << needed << "\n";
+
+		for (int ii = 0; ii < n; ++ii) {
+			int i = u[ii];
+			if (excluded[i]) continue;			// ignore this element
+			if (subsetIndices[i].size() >= needed) {	// a bit-risky
+				cout << "\nu = " << i << "\n";
+				excluded[i] = true;			// exclude this element
+				// fix subsetIndices
+				// remember to store next set indices to iterate on
+				vector <int> setsContainingI;
+				for (int idx : subsetIndices[i])
+					setsContainingI.push_back(idx);
+
+				for (int i = 0; i <= n; ++i)		// now clear subsetIndices
+					subsetIndices[i].clear();
+				int new_f = 0;
+				for (auto it = setsContainingI.begin(); it != setsContainingI.end(); ++it) {
+					int idx = *it;
+					bool taken = false;		// a fully excluded element set WON'T be taken 
+					for (int elem : subsets[idx]) {
+						if (excluded[elem]) continue;
+						subsetIndices[elem].push_back(idx);
+						taken = true;
 					}
+					if (taken)
+						++new_f;
+					else 					// else remove 
+						setsContainingI.erase(it--);
 				}
+				sunflower(setsContainingI, excluded, k, new_f, sunflowerIndices);
+				break;
 			}
 		}
 	}
-	int coresz = core.size();
-	// CAUTION : petals must be NON-EMPTY. Check sizes now that we know a core exists
-	for (int idx : subs) {
-		if (subsets[idx].size() == coresz)
-			return false;		// petal CANNOT be EMPTY
-	}
-	cout << "core :\n";
-	for (int c : core)
-		cout << c << " ";
-	cout << "\n";
-	return true;
 }
 
 int main () {
-	int n, d, m;
 	cout << "Enter n (number of elements in U) and d\n";
 	cin >> n >> d;
 	cout << "Enter m (number of subsets of U in F)\n";
 	cout << "Remember " << n << " choose " << d << " = " << choose(n, d) << "\n";
 	cin >> m;
 
-	// computing k
-	int low = 1, high = N, mid;		
+	int low = 1, high = N, mid;		// computing k using binary search
 	while (low <= high) {
 		mid = (low + high + 1)/2;
 		if (low == mid) break;
-		if (premise(d, mid, m)) {
+		if (premise(d, mid, m))
 			low = mid;
-		}
-		else {
+		else
 			high = mid - 1;
-		}
 		assert(high >= low);
 	}
-	// ans is at low
-	int k = low;
+	k = low;				// ans is at low as low is always in the solution
 	cout << "biggest k := " << k << "\n";
 
 	int choice;
 	do {
 		cout << "Enter 0 for randomly choosing " << m << " d-sized subsets from U\n";
 		cout << "Enter 1 for entering the family\n";
-
 		cin >> choice;
 
 		subsets.assign(m, vector <int> ());
@@ -144,7 +228,6 @@ int main () {
 			// http://www.cplusplus.com/reference/algorithm/shuffle/
 			// obtain a time-based seed:
 			unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-
 			shuffle (dsized.begin(), dsized.end(), std::default_random_engine(seed));
 
 			cout << "Subsets generated :\n";
@@ -181,98 +264,36 @@ int main () {
 		}
 
 		cout << "Computing a sunflower with " << k << " petals\n";
-		cout << "Computing G, a maximal set of disjoint subsets from F\n";
 
-		int seen[n];
-		memset(seen, 0, sizeof(seen));
+		vector <int> sunflowerIndices;
+		vector <bool> excluded(n + 1, false);
+		vector <int> subs;
+		for (int i = 0; i < m; ++i)
+			subs.push_back(i);
 
-		set <int> g;	// indices from F which are in G
-		g.insert(0);
-		// iterating over all subsets in F
-		int gtotal = subsets[0].size();
-		for (int i = 1; i < m; ++i) {
-			bool take = true;
-			for (int el : subsets[i]) {
-				for (int taken : g) {
-					for (int present : subsets[taken]) {
-						if (present == el) {
-							take = false; break;
-						}
-					}
-					if (!take) break;
-				}
-				if (!take) break;
-			}
-			if (take) {
-				g.insert(i);
-				gtotal += subsets[i].size();
-			}
+		sunflower(subs, excluded, k, m, sunflowerIndices);
+
+		if (sunflowerIndices.size() > 1) {
+			cout << "\nCore : \n";
+			for (int el1 : subsets[sunflowerIndices[0]])
+				for (int el2 : subsets[sunflowerIndices[1]])
+					if (el1 == el2)
+						cout << el1 << " ";
+			cout << "\n";
 		}
-		// got G
-		cout << "Indices of subsets from F which are in G:\n";
-		for (int i : g)
-			cout << i << " ";
-		cout << "\n Number of subsets each element is present in ::\n";
-
-		for (int elem = 1; elem <= n; ++elem)
-			cout << subsetIndices[elem].size() << " ";
+		cout << sunflowerIndices.size() << "-sized sunflower\n";
+		set <int> ind;
+		for (int i : sunflowerIndices) {
+			ind.insert(i);
+			for (int elem : subsets[i])
+				cout << elem << " ";
+			cout << "\n";
+		}
+		assert(ind.size() == sunflowerIndices.size());
+		for (bool b : excluded)
+			b ? cout << "1 " : cout << "0 ";
 		cout << "\n";
 
-		for (int elem = 1; elem <= n; ++elem)
-			cout << elem << " ";
-		cout << "\n";
-
-		if (g.size() >= k)
-			cout << "done, take " << k << " subsets from G\n";
-		else {
-			int f_by_s = m/gtotal;
-
-			int u[n + 1];
-			for (int i = 0; i <= n; ++i)
-				u[i] = i;
-			// http://www.cplusplus.com/reference/algorithm/shuffle/
-			// obtain a time-based seed:
-			unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-			shuffle (u, u + n + 1, std::default_random_engine(seed));
-
-			for (int ii = 0; ii <= n; ++ii) {
-				int i = u[ii];
-				if (subsetIndices[i].size() >= f_by_s) {
-					cout << i << " is the 'u' in the proof!\n";
-					cout << f_by_s << " needed. Degree of u is " << subsetIndices[i].size() << "\n";
-					int haveU = subsetIndices[i].size();
-					for (int r = (1 << haveU) - 1; r >= 1; --r) {
-						int set = 0;
-						vector <int> on;
-						for (int bit = 0; bit < haveU; ++bit) {
-							if (r & (1 << bit)) {
-								on.push_back(bit);
-								++set;
-							}
-						} // set = on.size()
-						if (set >= k) {
-							bool fine = true;
-							vector <int> input;
-							for (int place : on) {
-								int realIndex = subsetIndices[i][place];
-								input.push_back(realIndex);
-							}
-							if (sunflower(input)) {
-								cout << set << " petals found\n";
-								for (int place : on) {
-									int realIndex = subsetIndices[i][place];
-									for (int el : subsets[realIndex])
-										cout << el << " ";
-									cout << "\n";
-								}
-								break;
-							}
-						}
-					}
-					break;
-				}
-			}
-		}
 	} while (!(choice == 0 or choice == 1));
 	return 0;
 }
